@@ -17,52 +17,52 @@ class _VideoScreenState extends State<VideoScreen>
   late AnimationController _pulseAnimationController;
   late Animation<double> _avatarScaleAnimation;
   late Animation<double> _pulseAnimation;
-  
+
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
   bool _isLoading = true;
   double _progress = 0.0;
   Duration _totalDuration = const Duration(minutes: 2, seconds: 30);
   Duration _currentPosition = Duration.zero;
-  
+
   String _topic = '';
   String _avatarName = 'Prof. Nova';
   String _audioUrl = '';
   List<Map<String, String>> _flashNotes = [];
 
+  // Sample fallback URL
+  static const _fallbackAudioUrl =
+      'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3';
+
   @override
   void initState() {
     super.initState();
-    
+
     _avatarAnimationController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
-    );
-    
+    )..repeat(reverse: true);
+
     _pulseAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
-    
-    _avatarScaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.2,
-    ).animate(CurvedAnimation(
-      parent: _avatarAnimationController,
-      curve: Curves.easeInOut,
-    ));
-    
-    _pulseAnimation = Tween<double>(
-      begin: 1.0,
-      end: 1.1,
-    ).animate(CurvedAnimation(
-      parent: _pulseAnimationController,
-      curve: Curves.easeInOut,
-    ));
-    
-    _avatarAnimationController.repeat(reverse: true);
-    
-    // Set up audio player listeners
+
+    _avatarScaleAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
+      CurvedAnimation(
+        parent: _avatarAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
+      CurvedAnimation(
+        parent: _pulseAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    // Audio listeners
     _audioPlayer.onDurationChanged.listen((duration) {
       if (mounted) {
         setState(() {
@@ -70,7 +70,7 @@ class _VideoScreenState extends State<VideoScreen>
         });
       }
     });
-    
+
     _audioPlayer.onPositionChanged.listen((position) {
       if (mounted) {
         setState(() {
@@ -81,7 +81,7 @@ class _VideoScreenState extends State<VideoScreen>
         });
       }
     });
-    
+
     _audioPlayer.onPlayerComplete.listen((_) {
       if (mounted) {
         setState(() {
@@ -91,13 +91,11 @@ class _VideoScreenState extends State<VideoScreen>
         _navigateToFlashNotes();
       }
     });
-    
-    // Simulate loading and prepare audio
+
+    // Simulate loading then prepare audio
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
         _prepareAudio();
       }
     });
@@ -106,8 +104,6 @@ class _VideoScreenState extends State<VideoScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
-    // Get arguments passed from home screen
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
     if (args != null) {
       _topic = args['topic'] ?? '';
@@ -126,17 +122,16 @@ class _VideoScreenState extends State<VideoScreen>
   }
 
   Future<void> _prepareAudio() async {
+    final url = _audioUrl.isNotEmpty ? _audioUrl : _fallbackAudioUrl;
     try {
-      // For demo purposes, we'll use a sample MP3 URL
-      // In production, this would be the actual audio URL from the backend
-      const sampleAudioUrl = 'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3';
-      await _audioPlayer.setSourceUrl(sampleAudioUrl);
+      await _audioPlayer.setSourceUrl(url);
     } catch (e) {
-      print('Error preparing audio: $e');
-      // Fallback to simulation if audio fails
+      debugPrint('Error loading audio "$url": $e');
       setState(() {
         _totalDuration = const Duration(minutes: 2, seconds: 30);
       });
+      // Fallback simulation
+      _startProgressSimulation();
     }
   }
 
@@ -149,17 +144,10 @@ class _VideoScreenState extends State<VideoScreen>
         await _audioPlayer.resume();
         _pulseAnimationController.repeat(reverse: true);
       }
-      
-      setState(() {
-        _isPlaying = !_isPlaying;
-      });
+      setState(() => _isPlaying = !_isPlaying);
     } catch (e) {
-      print('Error toggling playback: $e');
-      // Fallback to simulation
-      setState(() {
-        _isPlaying = !_isPlaying;
-      });
-      
+      debugPrint('Playback toggle error: $e');
+      setState(() => _isPlaying = !_isPlaying);
       if (_isPlaying) {
         _pulseAnimationController.repeat(reverse: true);
         _startProgressSimulation();
@@ -171,7 +159,6 @@ class _VideoScreenState extends State<VideoScreen>
 
   void _startProgressSimulation() {
     if (!_isPlaying) return;
-    
     Future.delayed(const Duration(milliseconds: 100), () {
       if (mounted && _isPlaying) {
         setState(() {
@@ -179,7 +166,6 @@ class _VideoScreenState extends State<VideoScreen>
           _currentPosition = Duration(
             milliseconds: (_totalDuration.inMilliseconds * _progress).round(),
           );
-          
           if (_progress >= 1.0) {
             _progress = 1.0;
             _isPlaying = false;
@@ -197,12 +183,10 @@ class _VideoScreenState extends State<VideoScreen>
     final position = Duration(
       milliseconds: (_totalDuration.inMilliseconds * value).round(),
     );
-    
     try {
       await _audioPlayer.seek(position);
     } catch (e) {
-      print('Error seeking: $e');
-      // Fallback to manual progress update
+      debugPrint('Seek error: $e');
       setState(() {
         _progress = value;
         _currentPosition = position;
@@ -223,9 +207,7 @@ class _VideoScreenState extends State<VideoScreen>
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    return '$twoDigitMinutes:$twoDigitSeconds';
+    return '${twoDigits(duration.inMinutes.remainder(60))}:${twoDigits(duration.inSeconds.remainder(60))}';
   }
 
   @override
@@ -242,21 +224,13 @@ class _VideoScreenState extends State<VideoScreen>
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              _avatarName,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const Text(
-              'Live AI Lecture',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
-              ),
-            ),
+            Text(_avatarName,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
+            const Text('Live AI Lecture',
+                style: TextStyle(color: Colors.white70, fontSize: 12)),
           ],
         ),
         actions: [
@@ -264,17 +238,9 @@ class _VideoScreenState extends State<VideoScreen>
             margin: const EdgeInsets.only(right: 16),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.red,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Text(
-              'LIVE',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+                color: Colors.red, borderRadius: BorderRadius.circular(12)),
+            child: const Text('LIVE',
+                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
