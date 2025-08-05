@@ -48,6 +48,15 @@ class _PromptInputState extends State<PromptInput>
     super.dispose();
   }
 
+  void _handleFocus(bool hasFocus) {
+    setState(() {
+      _isFocused = hasFocus;
+    });
+    hasFocus
+        ? _animationController.forward()
+        : _animationController.reverse();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -60,7 +69,7 @@ class _PromptInputState extends State<PromptInput>
               scale: _scaleAnimation.value,
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
                       color: _isFocused
@@ -71,75 +80,51 @@ class _PromptInputState extends State<PromptInput>
                     ),
                   ],
                 ),
-                child: TextField(
-                  controller: widget.controller,
-                  maxLines: null,
-                  minLines: 3,
-                  enabled: !widget.isLoading,
-                  onSubmitted: (_) => widget.onSubmit?.call(),
-                  onTap: () {
-                    setState(() {
-                      _isFocused = true;
-                    });
-                    _animationController.forward();
-                  },
-                  onTapOutside: (_) {
-                    setState(() {
-                      _isFocused = false;
-                    });
-                    _animationController.reverse();
-                  },
-                  decoration: InputDecoration(
-                    hintText: widget.hintText,
-                    hintStyle: TextStyle(
-                      color: Colors.grey.shade500,
-                      fontSize: 16,
-                    ),
-                    prefixIcon: Container(
-                      margin: const EdgeInsets.all(12),
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Theme.of(context).colorScheme.primary,
-                            Theme.of(context).colorScheme.secondary,
-                          ],
+                child: Focus(
+                  onFocusChange: _handleFocus,
+                  child: TextField(
+                    controller: widget.controller,
+                    maxLines: null,
+                    minLines: 3,
+                    enabled: !widget.isLoading,
+                    onSubmitted: (_) => widget.onSubmit?.call(),
+                    decoration: InputDecoration(
+                      hintText: widget.hintText,
+                      prefixIcon: Container(
+                        margin: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Theme.of(context).colorScheme.primary,
+                              Theme.of(context).colorScheme.secondary,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        borderRadius: BorderRadius.circular(8),
+                        child: const Icon(
+                          Icons.lightbulb_outline,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.lightbulb_outline,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    suffixIcon: widget.isLoading
-                        ? Container(
-                            margin: const EdgeInsets.all(16),
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Theme.of(context).colorScheme.primary,
+                      suffixIcon: widget.isLoading
+                          ? Container(
+                              margin: const EdgeInsets.all(16),
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Theme.of(context).colorScheme.primary,
+                                ),
                               ),
-                            ),
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
+                            )
+                          : null,
                     ),
-                    filled: true,
-                    fillColor: Colors.white,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 16,
-                    ),
-                  ),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    height: 1.4,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          height: 1.4,
+                        ),
                   ),
                 ),
               ),
