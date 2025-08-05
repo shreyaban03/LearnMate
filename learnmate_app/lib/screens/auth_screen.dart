@@ -54,8 +54,14 @@ class _AuthScreenState extends State<AuthScreen> {
           // Cartoon-style background illustration (from Storyset/Blush)
           Positioned.fill(
             child: Image.asset(
-              'assets/images/background_cartoon.png', // e.g., undraw_login_re_4vu2.png
+              'assets/images/background_cartoon.png',
               fit: BoxFit.cover,
+            ),
+          ),
+          // Dim overlay to improve readability
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withOpacity(0.3),
             ),
           ),
           Center(
@@ -146,4 +152,3 @@ class _AuthScreenState extends State<AuthScreen> {
 // assets:
 //   - assets/lottie/login_animation.json
 //   - assets/images/background_cartoon.png
-
