@@ -17,25 +17,44 @@ class FaqCard extends StatefulWidget {
 }
 
 class _FaqCardState extends State<FaqCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
+    with TickerProviderStateMixin {
+  late AnimationController _expansionController;
+  late AnimationController _glowController;
+  late AnimationController _bounceController;
+  
   late Animation<double> _expandAnimation;
   late Animation<double> _iconRotationAnimation;
   late Animation<Color?> _colorAnimation;
+  late Animation<double> _glowAnimation;
+  late Animation<double> _bounceAnimation;
+  late Animation<double> _shadowAnimation;
   
   bool _isExpanded = false;
 
   @override
   void initState() {
     super.initState();
+    _initializeAnimations();
+  }
+
+  void _initializeAnimations() {
+    _expansionController = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
     
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+    _glowController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    
+    _bounceController = AnimationController(
+      duration: const Duration(milliseconds: 200),
       vsync: this,
     );
     
     _expandAnimation = CurvedAnimation(
-      parent: _animationController,
+      parent: _expansionController,
       curve: Curves.easeInOut,
     );
     
@@ -43,19 +62,45 @@ class _FaqCardState extends State<FaqCard>
       begin: 0.0,
       end: 0.5,
     ).animate(CurvedAnimation(
-      parent: _animationController,
+      parent: _expansionController,
       curve: Curves.easeInOut,
     ));
     
     _colorAnimation = ColorTween(
       begin: Colors.white,
-      end: const Color(0xFFF8F9FF),
-    ).animate(_animationController);
+      end: _getExpandedColor().withOpacity(0.1),
+    ).animate(_expansionController);
+
+    _glowAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _glowController,
+      curve: Curves.easeInOut,
+    ));
+
+    _bounceAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.98,
+    ).animate(CurvedAnimation(
+      parent: _bounceController,
+      curve: Curves.easeInOut,
+    ));
+
+    _shadowAnimation = Tween<double>(
+      begin: 0.05,
+      end: 0.15,
+    ).animate(_expansionController);
+
+    // Start subtle glow animation
+    _glowController.repeat(reverse: true);
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
+    _expansionController.dispose();
+    _glowController.dispose();
+    _bounceController.dispose();
     super.dispose();
   }
 
@@ -64,172 +109,90 @@ class _FaqCardState extends State<FaqCard>
       _isExpanded = !_isExpanded;
     });
     
+    // Bounce animation
+    _bounceController.forward().then((_) {
+      _bounceController.reverse();
+    });
+    
     if (_isExpanded) {
-      _animationController.forward();
+      _expansionController.forward();
     } else {
-      _animationController.reverse();
+      _expansionController.reverse();
     }
   }
 
   Color _getCardColor() {
+    final theme = Theme.of(context);
     final colors = [
-      const Color(0xFFE3F2FD), // Light Blue
-      const Color(0xFFF3E5F5), // Light Purple
-      const Color(0xFFE8F5E8), // Light Green
-      const Color(0xFFFFF3E0), // Light Orange
-      const Color(0xFFFFEBEE), // Light Pink
+      theme.colorScheme.primary.withOpacity(0.1),
+      theme.colorScheme.secondary.withOpacity(0.1),
+      theme.colorScheme.tertiary.withOpacity(0.1),
+      theme.colorScheme.surface.withOpacity(0.5),
+      Colors.purple.withOpacity(0.1),
     ];
     return colors[widget.index % colors.length];
   }
 
+  Color _getExpandedColor() {
+    final theme = Theme.of(context);
+    final colors = [
+      theme.colorScheme.primary,
+      theme.colorScheme.secondary,
+      theme.colorScheme.tertiary,
+      theme.colorScheme.onSurface,
+      Colors.purple,
+    ];
+    return colors[widget.index % colors.length];
+  }
+
+  LinearGradient _getGradient() {
+    final theme = Theme.of(context);
+    final gradients = [
+      LinearGradient(
+        colors: [
+          theme.colorScheme.primary.withOpacity(0.1),
+          theme.colorScheme.secondary.withOpacity(0.05),
+        ],
+      ),
+      LinearGradient(
+        colors: [
+          theme.colorScheme.secondary.withOpacity(0.1),
+          theme.colorScheme.tertiary.withOpacity(0.05),
+        ],
+      ),
+      LinearGradient(
+        colors: [
+          theme.colorScheme.tertiary.withOpacity(0.1),
+          theme.colorScheme.primary.withOpacity(0.05),
+        ],
+      ),
+    ];
+    return gradients[widget.index % gradients.length];
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return AnimatedBuilder(
-      animation: _animationController,
+      animation: Listenable.merge([
+        _expansionController,
+        _glowAnimation,
+        _bounceAnimation,
+      ]),
       builder: (context, child) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: _colorAnimation.value,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _isExpanded
-                  ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
-                  : Colors.grey.shade200,
-              width: _isExpanded ? 2 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(_isExpanded ? 0.1 : 0.05),
-                blurRadius: _isExpanded ? 12 : 6,
-                offset: Offset(0, _isExpanded ? 4 : 2),
+        return Transform.scale(
+          scale: _bounceAnimation.value,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              gradient: _getGradient(),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: _isExpanded
+                    ? _getExpandedColor().withOpacity(0.4)
+                    : theme.colorScheme.primary.withOpacity(0.2),
+                width: _isExpanded ? 2.5 : 1.5,
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              children: [
-                // Question Header
-                InkWell(
-                  onTap: _toggleExpansion,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Row(
-                      children: [
-                        // Question Number
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Theme.of(context).colorScheme.primary,
-                                Theme.of(context).colorScheme.secondary,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: Text(
-                              '${widget.index + 1}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                        
-                        const SizedBox(width: 16),
-                        
-                        // Question Text
-                        Expanded(
-                          child: Text(
-                            widget.question,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.onSurface,
-                              height: 1.3,
-                            ),
-                          ),
-                        ),
-                        
-                        const SizedBox(width: 12),
-                        
-                        // Expand Icon
-                        RotationTransition(
-                          turns: _iconRotationAnimation,
-                          child: Icon(
-                            Icons.expand_more,
-                            color: Theme.of(context).colorScheme.primary,
-                            size: 24,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                
-                // Answer Section
-                SizeTransition(
-                  sizeFactor: _expandAnimation,
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: _getCardColor().withOpacity(0.3),
-                      border: Border(
-                        top: BorderSide(
-                          color: Colors.grey.shade200,
-                          width: 1,
-                        ),
-                      ),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.lightbulb_outline,
-                                color: Theme.of(context).colorScheme.primary,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Answer',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            widget.answer,
-                            style: TextStyle(
-                              fontSize: 15,
-                              height: 1.5,
-                              color: Theme.of(context).colorScheme.onSurface.withOpacity(0.8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
+              boxShadow: [
+                Box
