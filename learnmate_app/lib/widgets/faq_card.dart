@@ -195,4 +195,218 @@ class _FaqCardState extends State<FaqCard>
                 width: _isExpanded ? 2.5 : 1.5,
               ),
               boxShadow: [
-                Box
+                BoxShadow(
+                  color: Colors.black.withOpacity(_shadowAnimation.value),
+                  blurRadius: _isExpanded ? 20 : 10,
+                  offset: Offset(0, _isExpanded ? 8 : 4),
+                ),
+                if (_isExpanded)
+                  BoxShadow(
+                    color: _getExpandedColor().withOpacity(
+                      0.3 * _glowAnimation.value,
+                    ),
+                    blurRadius: 15,
+                    offset: const Offset(0, 0),
+                  ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: Column(
+                children: [
+                  // Question Header
+                  InkWell(
+                    onTap: _toggleExpansion,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: _isExpanded ? LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            _getExpandedColor().withOpacity(0.1),
+                            _getExpandedColor().withOpacity(0.05),
+                            Colors.transparent,
+                          ],
+                        ) : null,
+                      ),
+                      child: Row(
+                        children: [
+                          // Enhanced Question Number
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  _getExpandedColor(),
+                                  _getExpandedColor().withOpacity(0.8),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: _getExpandedColor().withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Center(
+                              child: Text(
+                                '${widget.index + 1}',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                          
+                          const SizedBox(width: 16),
+                          
+                          // Question Text
+                          Expanded(
+                            child: Text(
+                              widget.question,
+                              style: theme.textTheme.bodyLarge?.copyWith(
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.onSurface,
+                                height: 1.3,
+                              ),
+                            ),
+                          ),
+                          
+                          const SizedBox(width: 12),
+                          
+                          // Enhanced Expand Icon
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _getExpandedColor().withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: RotationTransition(
+                              turns: _iconRotationAnimation,
+                              child: Icon(
+                                Icons.expand_more_rounded,
+                                color: _getExpandedColor(),
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  // Answer Section with Enhanced Animation
+                  SizeTransition(
+                    sizeFactor: _expandAnimation,
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            _getExpandedColor().withOpacity(0.05),
+                            _getExpandedColor().withOpacity(0.15),
+                          ],
+                        ),
+                        border: Border(
+                          top: BorderSide(
+                            color: _getExpandedColor().withOpacity(0.2),
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Answer Header
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        _getExpandedColor(),
+                                        _getExpandedColor().withOpacity(0.8),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.lightbulb_outline_rounded,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Answer',
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: _getExpandedColor(),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _getExpandedColor().withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Text(
+                                    '💡',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            
+                            const SizedBox(height: 16),
+                            
+                            // Answer Content
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.8),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _getExpandedColor().withOpacity(0.2),
+                                ),
+                              ),
+                              child: Text(
+                                widget.answer,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  height: 1.6,
+                                  color: theme.colorScheme.onSurface.withOpacity(0.8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
