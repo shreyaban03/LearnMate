@@ -11,13 +11,65 @@ class AuthScreen extends StatefulWidget {
   State<AuthScreen> createState() => _AuthScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _AuthScreenState extends State<AuthScreen>
+    with TickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isSignUp = false;
   bool _isLoading = false;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  
+  // Animation controllers for smooth transitions
+  late AnimationController _fadeController;
+  late AnimationController _slideController;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize animation controllers
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    
+    _slideController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+
+    _fadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeInOut,
+    ));
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _slideController,
+      curve: Curves.easeOutBack,
+    ));
+
+    // Start animations
+    _fadeController.forward();
+    _slideController.forward();
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    _slideController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   Future<void> _handleAuth() async {
     if (!_formKey.currentState!.validate()) return;
@@ -39,116 +91,233 @@ class _AuthScreenState extends State<AuthScreen> {
         Navigator.pushReplacementNamed(context, '/home');
       }
     } on FirebaseAuthException catch (e) {
-      final message = e.message ?? 'Authentication error';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      final message = _getAuthErrorMessage(e.code);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  String _getAuthErrorMessage(String errorCode) {
+    switch (errorCode) {
+      case 'user-not-found':
+        return 'No user found with this email';
+      case 'wrong-password':
+        return 'Incorrect password';
+      case 'email-already-in-use':
+        return 'Email is already registered';
+      case 'weak-password':
+        return 'Password is too weak';
+      case 'invalid-email':
+        return 'Invalid email address';
+      default:
+        return 'Authentication failed. Please try again.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
-      body: Stack(
-        children: [
-          // Cartoon-style background illustration (from Storyset/Blush)
-          Positioned.fill(
-            child: Image.asset(
-              'assets/images/background_cartoon.png',
-              fit: BoxFit.cover,
-            ),
+      backgroundColor: theme.colorScheme.background,
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              theme.colorScheme.background,
+              theme.colorScheme.surface,
+              theme.colorScheme.primary.withOpacity(0.1),
+            ],
           ),
-          // Dim overlay to improve readability
-          Positioned.fill(
-            child: Container(
-              color: Colors.black.withOpacity(0.3),
-            ),
-          ),
-          Center(
+        ),
+        child: SafeArea(
+          child: Center(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                elevation: 8,
-                color: Colors.white.withOpacity(0.95),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Cartoon animation (Lottie)
-                        Lottie.asset(
-                          'assets/lottie/login_animation.json',
-                          width: 150,
-                          height: 150,
-                          repeat: true,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _isSignUp ? 'Sign Up' : 'Sign In',
-                          style: GoogleFonts.balooBhai2(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        TextFormField(
-                          controller: _emailController,
-                          validator: (value) => value == null || value.isEmpty
-                              ? 'Email cannot be empty'
-                              : null,
-                          decoration: const InputDecoration(labelText: 'Email'),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _passwordController,
-                          obscureText: true,
-                          validator: (value) => value == null || value.length < 6
-                              ? 'Password must be at least 6 characters'
-                              : null,
-                          decoration: const InputDecoration(labelText: 'Password'),
-                        ),
-                        const SizedBox(height: 24),
-                        _isLoading
-                            ? const CircularProgressIndicator()
-                            : ElevatedButton(
-                                onPressed: _handleAuth,
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 12),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(20),
-                                  ),
-                                ),
-                                child: Text(
-                                  _isSignUp ? 'Create Account' : 'Login',
-                                  style: GoogleFonts.nunito(fontSize: 18),
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: Card(
+                    elevation: theme.cardTheme.elevation ?? 8,
+                    shadowColor: theme.cardTheme.shadowColor,
+                    shape: theme.cardTheme.shape,
+                    color: theme.cardTheme.color,
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Enhanced Lottie animation with proper sizing
+                            Container(
+                              width: 180,
+                              height: 180,
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Lottie.asset(
+                                'assets/animations/login.json', // Updated filename
+                                width: 150,
+                                height: 150,
+                                fit: BoxFit.contain,
+                                repeat: true,
+                                animate: true,
+                                // Optimize for better performance
+                                options: LottieOptions(
+                                  enableMergePaths: true,
                                 ),
                               ),
-                        TextButton(
-                          onPressed: () => setState(() => _isSignUp = !_isSignUp),
-                          child: Text(
-                            _isSignUp
-                                ? 'Already have an account? Sign In'
-                                : 'Don\'t have an account? Sign Up',
-                            style: GoogleFonts.comicNeue(fontSize: 14),
-                          ),
+                            ),
+                            const SizedBox(height: 24),
+                            
+                            // Title using theme's text style
+                            Text(
+                              _isSignUp ? '🎯 Create Account' : '👋 Welcome Back',
+                              style: theme.textTheme.displayLarge?.copyWith(
+                                color: theme.colorScheme.primary,
+                                fontSize: 28,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 8),
+                            
+                            Text(
+                              _isSignUp 
+                                ? 'Join LearnMate and start your learning journey!'
+                                : 'Sign in to continue your learning adventure',
+                              style: theme.textTheme.bodyMedium,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 32),
+                            
+                            // Email field with theme styling
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your email';
+                                }
+                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                                  return 'Please enter a valid email';
+                                }
+                                return null;
+                              },
+                              decoration: InputDecoration(
+                                labelText: 'Email Address',
+                                prefixIcon: Icon(
+                                  Icons.email_outlined,
+                                  color: theme.colorScheme.primary,
+                                ),
+                                // Theme will automatically apply the InputDecorationTheme
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Password field with theme styling
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: true,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your password';
+                                }
+                                if (value.length < 6) {
+                                  return 'Password must be at least 6 characters';
+                                }
+                                return null;
+                              },
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: Icon(
+                                  Icons.lock_outline,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            
+                            // Auth button with theme styling
+                            SizedBox(
+                              width: double.infinity,
+                              child: _isLoading
+                                  ? Container(
+                                      height: 56,
+                                      decoration: BoxDecoration(
+                                        color: theme.colorScheme.primary.withOpacity(0.7),
+                                        borderRadius: BorderRadius.circular(25),
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          color: theme.colorScheme.onPrimary,
+                                        ),
+                                      ),
+                                    )
+                                  : ElevatedButton(
+                                      onPressed: _handleAuth,
+                                      // Theme automatically applies ElevatedButtonTheme
+                                      child: Text(
+                                        _isSignUp ? '🚀 Create Account' : '✨ Sign In',
+                                        style: theme.textTheme.labelLarge,
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(height: 16),
+                            
+                            // Toggle button with theme colors
+                            TextButton(
+                              onPressed: () {
+                                setState(() => _isSignUp = !_isSignUp);
+                                // Add subtle animation when switching
+                                _slideController.reset();
+                                _slideController.forward();
+                              },
+                              style: TextButton.styleFrom(
+                                foregroundColor: theme.colorScheme.primary,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                              ),
+                              child: Text(
+                                _isSignUp
+                                    ? 'Already have an account? Sign In 👆'
+                                    : 'Don\'t have an account? Sign Up 🎨',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
-
-// Ensure you have these assets in your pubspec.yaml:
-// assets:
-//   - assets/lottie/login_animation.json
-//   - assets/images/background_cartoon.png
