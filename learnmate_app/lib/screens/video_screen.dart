@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 
 class VideoScreen extends StatefulWidget {
@@ -13,10 +12,20 @@ class VideoScreen extends StatefulWidget {
 
 class _VideoScreenState extends State<VideoScreen>
     with TickerProviderStateMixin {
+  // Animation controllers
   late AnimationController _avatarAnimationController;
   late AnimationController _pulseAnimationController;
+  late AnimationController _loadingAnimationController;
+  late AnimationController _controlsAnimationController;
+  late AnimationController _progressAnimationController;
+  
+  // Animations
   late Animation<double> _avatarScaleAnimation;
   late Animation<double> _pulseAnimation;
+  late Animation<double> _loadingFadeAnimation;
+  late Animation<Offset> _controlsSlideAnimation;
+  late Animation<double> _controlsFadeAnimation;
+  late Animation<double> _progressGlowAnimation;
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlaying = false;
@@ -37,32 +46,87 @@ class _VideoScreenState extends State<VideoScreen>
   @override
   void initState() {
     super.initState();
+    _initializeAnimations();
+    _setupAudioListeners();
+    _startLoadingSequence();
+  }
 
+  void _initializeAnimations() {
     _avatarAnimationController = AnimationController(
-      duration: const Duration(seconds: 2),
+      duration: const Duration(seconds: 3),
       vsync: this,
     )..repeat(reverse: true);
 
     _pulseAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
 
-    _avatarScaleAnimation = Tween<double>(begin: 0.8, end: 1.2).animate(
-      CurvedAnimation(
-        parent: _avatarAnimationController,
-        curve: Curves.easeInOut,
-      ),
+    _loadingAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
     );
 
-    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
-      CurvedAnimation(
-        parent: _pulseAnimationController,
-        curve: Curves.easeInOut,
-      ),
+    _controlsAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
     );
 
-    // Audio listeners
+    _progressAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 2000),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _avatarScaleAnimation = Tween<double>(
+      begin: 0.85,
+      end: 1.15,
+    ).animate(CurvedAnimation(
+      parent: _avatarAnimationController,
+      curve: Curves.easeInOut,
+    ));
+
+    _pulseAnimation = Tween<double>(
+      begin: 1.0,
+      end: 1.08,
+    ).animate(CurvedAnimation(
+      parent: _pulseAnimationController,
+      curve: Curves.easeInOut,
+    ));
+
+    _loadingFadeAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(
+      parent: _loadingAnimationController,
+      curve: Curves.easeOut,
+    ));
+
+    _controlsSlideAnimation = Tween<Offset>(
+      begin: const Offset(0, 1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _controlsAnimationController,
+      curve: Curves.easeOutBack,
+    ));
+
+    _controlsFadeAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _controlsAnimationController,
+      curve: Curves.easeOut,
+    ));
+
+    _progressGlowAnimation = Tween<double>(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _progressAnimationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  void _setupAudioListeners() {
     _audioPlayer.onDurationChanged.listen((duration) {
       if (mounted) {
         setState(() {
@@ -91,14 +155,19 @@ class _VideoScreenState extends State<VideoScreen>
         _navigateToFlashNotes();
       }
     });
+  }
 
-    // Simulate loading then prepare audio
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        _prepareAudio();
-      }
-    });
+  void _startLoadingSequence() async {
+    await Future.delayed(const Duration(seconds: 2));
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+      _loadingAnimationController.forward();
+      
+      await Future.delayed(const Duration(milliseconds: 300));
+      _controlsAnimationController.forward();
+      _prepareAudio();
+    }
   }
 
   @override
@@ -117,6 +186,9 @@ class _VideoScreenState extends State<VideoScreen>
   void dispose() {
     _avatarAnimationController.dispose();
     _pulseAnimationController.dispose();
+    _loadingAnimationController.dispose();
+    _controlsAnimationController.dispose();
+    _progressAnimationController.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -130,7 +202,6 @@ class _VideoScreenState extends State<VideoScreen>
       setState(() {
         _totalDuration = const Duration(minutes: 2, seconds: 30);
       });
-      // Fallback simulation
       _startProgressSimulation();
     }
   }
@@ -212,122 +283,188 @@ class _VideoScreenState extends State<VideoScreen>
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_avatarName,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
-            const Text('Live AI Lecture',
-                style: TextStyle(color: Colors.white70, fontSize: 12)),
-          ],
-        ),
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-                color: Colors.red, borderRadius: BorderRadius.circular(12)),
-            child: const Text('LIVE',
-                style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+      backgroundColor: const Color(0xFF0A0A0B),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF0A0A0B),
+              const Color(0xFF1A1A2E),
+              theme.colorScheme.primary.withOpacity(0.1),
+            ],
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Avatar Section
-          Expanded(
-            flex: 3,
-            child: Center(
-              child: _isLoading
-                  ? Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Theme.of(context).colorScheme.primary,
-                                Theme.of(context).colorScheme.secondary,
-                                Theme.of(context).colorScheme.tertiary,
-                              ],
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Enhanced AppBar
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.black.withOpacity(0.5),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _avatarName,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
                             ),
-                            shape: BoxShape.circle,
                           ),
-                          child: const CircularProgressIndicator(
-                            strokeWidth: 6,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          Text(
+                            '🎓 Live AI Lecture',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.red, Colors.red.shade700],
+                        ),
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'LIVE',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Avatar Section with Loading State
+              Expanded(
+                flex: 3,
+                child: Center(
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Loading State
+                      if (_isLoading)
+                        FadeTransition(
+                          opacity: _loadingFadeAnimation,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                width: 140,
+                                height: 140,
+                                child: Lottie.asset(
+                                  'assets/lottie/loading.json',
+                                  fit: BoxFit.contain,
+                                  repeat: true,
+                                  animate: true,
+                                ),
+                              ),
+                              const SizedBox(height: 32),
+                              Text(
+                                '🎭 Preparing your AI teacher...',
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Getting ready to teach you about $_topic',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: Colors.white70,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 24),
-                        Text(
-                          '🎭 Preparing your AI teacher...',
-                          style: GoogleFonts.balooBhai2(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Getting ready to teach you about $_topic',
-                          style: GoogleFonts.nunito(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    )
-                  : AnimatedBuilder(
-                      animation: _avatarAnimationController,
-                      builder: (context, child) {
-                        return AnimatedBuilder(
-                          animation: _pulseAnimation,
+                      
+                      // Avatar Display
+                      if (!_isLoading)
+                        AnimatedBuilder(
+                          animation: Listenable.merge([
+                            _avatarAnimationController,
+                            _pulseAnimation,
+                          ]),
                           builder: (context, child) {
                             return Transform.scale(
                               scale: _avatarScaleAnimation.value * 
                                      (_isPlaying ? _pulseAnimation.value : 1.0),
                               child: Container(
-                                width: 250,
-                                height: 250,
+                                width: 280,
+                                height: 280,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   gradient: RadialGradient(
                                     colors: [
-                                      Theme.of(context).colorScheme.primary.withOpacity(0.8),
-                                      Theme.of(context).colorScheme.secondary.withOpacity(0.6),
-                                      Theme.of(context).colorScheme.tertiary.withOpacity(0.4),
+                                      theme.colorScheme.primary.withOpacity(0.3),
+                                      theme.colorScheme.secondary.withOpacity(0.2),
+                                      theme.colorScheme.tertiary.withOpacity(0.1),
                                       Colors.transparent,
                                     ],
                                   ),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Theme.of(context).colorScheme.primary.withOpacity(0.4),
-                                      blurRadius: 40,
+                                      color: theme.colorScheme.primary.withOpacity(0.6),
+                                      blurRadius: 60,
                                       spreadRadius: 20,
+                                    ),
+                                    BoxShadow(
+                                      color: theme.colorScheme.secondary.withOpacity(0.4),
+                                      blurRadius: 40,
+                                      spreadRadius: 10,
                                     ),
                                   ],
                                 ),
                                 child: Center(
                                   child: Container(
-                                    width: 180,
-                                    height: 180,
+                                    width: 200,
+                                    height: 200,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
                                     child: Lottie.asset(
-                                      'assets/animations/ai_teacher_avatar.json',
+                                      'assets/lottie/ai_teacher_avatar.json',
                                       fit: BoxFit.contain,
                                       repeat: true,
                                       animate: true,
@@ -337,162 +474,274 @@ class _VideoScreenState extends State<VideoScreen>
                               ),
                             );
                           },
-                        );
-                      },
-                    ),
-            ),
-          ),
-          
-          // Topic Display
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              'Teaching: $_topic',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          
-          const SizedBox(height: 32),
-          
-          // Audio Controls Section
-          Expanded(
-            flex: 1,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    // Progress Bar
-                    Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              _formatDuration(_currentPosition),
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 12,
-                              ),
-                            ),
-                            Text(
-                              _formatDuration(_totalDuration),
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: _progress,
-                          backgroundColor: Colors.grey.shade300,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Theme.of(context).colorScheme.primary,
+
+              // Topic Display
+              if (!_isLoading)
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        theme.colorScheme.primary.withOpacity(0.2),
+                        theme.colorScheme.secondary.withOpacity(0.1),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: theme.colorScheme.primary.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.school,
+                        color: theme.colorScheme.primary,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Teaching: $_topic',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
                           ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // Audio Controls Section
+              SlideTransition(
+                position: _controlsSlideAnimation,
+                child: FadeTransition(
+                  opacity: _controlsFadeAnimation,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(30),
+                        topRight: Radius.circular(30),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 20,
+                          offset: const Offset(0, -5),
                         ),
                       ],
                     ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Play Controls
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _progress = math.max(0, _progress - 0.1);
-                              _currentPosition = Duration(
-                                milliseconds: (_totalDuration.inMilliseconds * _progress).round(),
-                              );
-                            });
-                          },
-                          icon: const Icon(Icons.replay_10),
-                          iconSize: 32,
-                        ),
-                        
-                        const SizedBox(width: 24),
-                        
-                        Container(
-                          width: 64,
-                          height: 64,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Theme.of(context).colorScheme.primary,
-                                Theme.of(context).colorScheme.secondary,
-                              ],
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          // Drag Handle
+                          Container(
+                            width: 40,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade300,
+                              borderRadius: BorderRadius.circular(2),
                             ),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
+                          ),
+                          
+                          const SizedBox(height: 24),
+
+                          // Progress Bar with Glow Effect
+                          Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    _formatDuration(_currentPosition),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  Text(
+                                    _formatDuration(_totalDuration),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              AnimatedBuilder(
+                                animation: _progressGlowAnimation,
+                                builder: (context, child) {
+                                  return Container(
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(3),
+                                      boxShadow: _isPlaying ? [
+                                        BoxShadow(
+                                          color: theme.colorScheme.primary.withOpacity(
+                                            0.4 * _progressGlowAnimation.value,
+                                          ),
+                                          blurRadius: 8,
+                                          spreadRadius: 1,
+                                        ),
+                                      ] : null,
+                                    ),
+                                    child: LinearProgressIndicator(
+                                      value: _progress,
+                                      backgroundColor: Colors.grey.shade200,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        theme.colorScheme.primary,
+                                      ),
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                  );
+                                },
                               ),
                             ],
                           ),
-                          child: IconButton(
-                            onPressed: _isLoading ? null : _togglePlayPause,
-                            icon: Icon(
-                              _isPlaying ? Icons.pause : Icons.play_arrow,
-                              color: Colors.white,
-                              size: 32,
+
+                          const SizedBox(height: 32),
+
+                          // Enhanced Play Controls
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildControlButton(
+                                icon: Icons.replay_10,
+                                onPressed: () {
+                                  setState(() {
+                                    _progress = math.max(0, _progress - 0.1);
+                                    _currentPosition = Duration(
+                                      milliseconds: (_totalDuration.inMilliseconds * _progress).round(),
+                                    );
+                                  });
+                                },
+                              ),
+                              
+                              // Main Play Button
+                              Container(
+                                width: 72,
+                                height: 72,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      theme.colorScheme.primary,
+                                      theme.colorScheme.secondary,
+                                      theme.colorScheme.tertiary,
+                                    ],
+                                  ),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: theme.colorScheme.primary.withOpacity(0.4),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: IconButton(
+                                  onPressed: _isLoading ? null : _togglePlayPause,
+                                  icon: Icon(
+                                    _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                    color: Colors.white,
+                                    size: 36,
+                                  ),
+                                ),
+                              ),
+                              
+                              _buildControlButton(
+                                icon: Icons.forward_10,
+                                onPressed: () {
+                                  setState(() {
+                                    _progress = math.min(1.0, _progress + 0.1);
+                                    _currentPosition = Duration(
+                                      milliseconds: (_totalDuration.inMilliseconds * _progress).round(),
+                                    );
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+
+                          const SizedBox(height: 24),
+
+                          // Skip Button
+                          TextButton(
+                            onPressed: _navigateToFlashNotes,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Skip to Flash Notes',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: theme.colorScheme.primary,
+                                  size: 18,
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        
-                        const SizedBox(width: 24),
-                        
-                        IconButton(
-                          onPressed: () {
-                            setState(() {
-                              _progress = math.min(1.0, _progress + 0.1);
-                              _currentPosition = Duration(
-                                milliseconds: (_totalDuration.inMilliseconds * _progress).round(),
-                              );
-                            });
-                          },
-                          icon: const Icon(Icons.forward_10),
-                          iconSize: 32,
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 16),
-                    
-                    // Skip to Notes Button
-                    TextButton(
-                      onPressed: _navigateToFlashNotes,
-                      child: Text(
-                        'Skip to Flash Notes →',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlButton({
+    required IconData icon,
+    required VoidCallback onPressed,
+  }) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
+      ),
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(
+          icon,
+          color: Theme.of(context).colorScheme.primary,
+          size: 24,
+        ),
       ),
     );
   }
