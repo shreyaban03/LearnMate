@@ -10,7 +10,6 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  google_fonts: ^2.3.1
   
   # Firebase Authentication
   firebase_core: ^2.24.2
@@ -22,7 +21,8 @@ dependencies:
   lottie: ^2.7.0
   
   # HTTP & Utils
-  http: ^1.1.0
+  provider: ^6.1.1  
+  http: ^1.1.0 
   google_fonts: ^6.1.0
   
   # UI Enhancements
@@ -40,5 +40,4 @@ flutter:
   
   assets:
     - assets/animations/
-    - assets/images/
-    - assets/illustrations/
+    
