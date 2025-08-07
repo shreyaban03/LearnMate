@@ -1,6 +1,11 @@
+## 2. Updated HomeScreen with Provider
+```dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:lottie/lottie.dart';
 import '../widgets/prompt_input.dart';
+import '../providers/auth_provider.dart';
+import '../providers/lesson_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -30,7 +35,6 @@ class _HomeScreenState extends State<HomeScreen>
   late Animation<Offset> _headerSlideAnimation;
   late Animation<double> _headerFadeAnimation;
   
-  bool _isLoading = false;
   String? _errorText;
   
   final List<String> _suggestedTopics = [
@@ -51,34 +55,37 @@ class _HomeScreenState extends State<HomeScreen>
     super.initState();
     _initializeAnimations();
     _startAnimationSequence();
+    
+    // Load user's lesson history
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.user?.uid != null) {
+        context.read<LessonProvider>().loadLessonHistory(authProvider.user!.uid!);
+      }
+    });
   }
 
   void _initializeAnimations() {
-    // Chip animations
     _chipAnimationController = AnimationController(
       duration: const Duration(milliseconds: 2500),
       vsync: this,
     );
     
-    // Submit button animation
     _submitAnimationController = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
     
-    // Brain animation controller
     _brainAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
     
-    // Robot animation controller  
     _robotAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
     
-    // Header animation controller
     _headerAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -161,19 +168,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _startAnimationSequence() async {
-    // Start header animation first
     _headerAnimationController.forward();
     
     await Future.delayed(const Duration(milliseconds: 200));
     
-    // Start brain and robot animations with slight delay
     _brainAnimationController.forward();
     await Future.delayed(const Duration(milliseconds: 300));
     _robotAnimationController.forward();
     
     await Future.delayed(const Duration(milliseconds: 400));
     
-    // Start chip animations last
     _chipAnimationController.forward();
   }
 
@@ -204,7 +208,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
     
     setState(() {
-      _isLoading = true;
       _errorText = null;
     });
     
@@ -212,62 +215,27 @@ class _HomeScreenState extends State<HomeScreen>
       _submitAnimationController.reverse();
     });
     
-    // Simulate API call to /generate_lesson
-    await Future.delayed(const Duration(seconds: 3));
+    final authProvider = context.read<AuthProvider>();
+    final lessonProvider = context.read<LessonProvider>();
     
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-      
-      // Navigate to video screen with dummy data
+    // Generate lesson using provider
+    final success = await lessonProvider.generateMockLesson(_promptController.text.trim());
+    // For real backend: await lessonProvider.generateLesson(_promptController.text.trim(), authProvider.user?.uid);
+    
+    if (success && mounted) {
+      // Navigate to video screen with generated lesson
       Navigator.pushNamed(
         context,
         '/video',
         arguments: {
-          'topic': _promptController.text.trim(),
-          'audioUrl': 'https://example.com/audio.mp3',
-          'avatarName': _generateRandomAvatarName(),
-          'flashNotes': _generateDummyFlashNotes(_promptController.text.trim()),
+          'lesson': lessonProvider.currentLesson,
         },
       );
+    } else if (lessonProvider.errorMessage != null && mounted) {
+      setState(() {
+        _errorText = lessonProvider.errorMessage;
+      });
     }
-  }
-
-  String _generateRandomAvatarName() {
-    final names = [
-      'Prof. Nova',
-      'Dr. Sage',
-      'Prof. Luna',
-      'Dr. Cosmos',
-      'Prof. Iris',
-      'Dr. Phoenix',
-      'Prof. Atlas',
-      'Dr. Vega',
-    ];
-    names.shuffle();
-    return names.first;
-  }
-
-  List<Map<String, String>> _generateDummyFlashNotes(String topic) {
-    return [
-      {
-        'q': 'What is $topic?',
-        'a': 'This is a comprehensive explanation of $topic that covers the fundamental concepts and principles.',
-      },
-      {
-        'q': 'How does $topic work?',
-        'a': 'The mechanism behind $topic involves several key processes and interactions that work together.',
-      },
-      {
-        'q': 'Where is $topic used?',
-        'a': '$topic has applications in various fields and industries, making it highly relevant in today\'s world.',
-      },
-      {
-        'q': 'Why is $topic important?',
-        'a': 'Understanding $topic is crucial because it impacts many aspects of our daily lives and future developments.',
-      },
-    ];
   }
 
   @override
@@ -276,6 +244,7 @@ class _HomeScreenState extends State<HomeScreen>
     
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: _buildAppBar(theme),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -300,18 +269,27 @@ class _HomeScreenState extends State<HomeScreen>
                   
                   const SizedBox(height: 32),
                   
+                  // Recent Lessons Section
+                  _buildRecentLessons(theme),
+                  
+                  const SizedBox(height: 24),
+                  
                   // Animated Topic Chips
                   _buildTopicChips(theme),
                   
                   const SizedBox(height: 32),
                   
                   // Prompt Input
-                  PromptInput(
-                    controller: _promptController,
-                    hintText: 'Type your learning topic here...',
-                    errorText: _errorText,
-                    isLoading: _isLoading,
-                    onSubmit: _submitPrompt,
+                  Consumer<LessonProvider>(
+                    builder: (context, lessonProvider, child) {
+                      return PromptInput(
+                        controller: _promptController,
+                        hintText: 'Type your learning topic here...',
+                        errorText: _errorText ?? lessonProvider.errorMessage,
+                        isLoading: lessonProvider.isGenerating,
+                        onSubmit: _submitPrompt,
+                      );
+                    },
                   ),
                   
                   const SizedBox(height: 24),
@@ -326,6 +304,226 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ),
       ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar(ThemeData theme) {
+    return AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  theme.colorScheme.primary,
+                  theme.colorScheme.secondary,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.school_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'LearnMate',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Consumer<AuthProvider>(
+                builder: (context, authProvider, child) {
+                  return Text(
+                    'Welcome back, ${authProvider.user?.email?.split('@').first ?? 'Learner'}!',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+      actions: [
+        Consumer<AuthProvider>(
+          builder: (context, authProvider, child) {
+            return PopupMenuButton<String>(
+              onSelected: (value) async {
+                switch (value) {
+                  case 'profile':
+                    // Navigate to profile
+                    break;
+                  case 'history':
+                    // Show lesson history
+                    _showLessonHistory(context);
+                    break;
+                  case 'settings':
+                    // Navigate to settings
+                    break;
+                  case 'logout':
+                    await authProvider.signOut();
+                    break;
+                }
+              },
+              itemBuilder: (BuildContext context) => [
+                PopupMenuItem<String>(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person_outline, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      const Text('Profile'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'history',
+                  child: Row(
+                    children: [
+                      Icon(Icons.history, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      const Text('Lesson History'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem<String>(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings_outlined, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      const Text('Settings'),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
+                PopupMenuItem<String>(
+                  value: 'logout',
+                  child: Row(
+                    children: [
+                      Icon(Icons.logout, color: theme.colorScheme.error),
+                      const SizedBox(width: 8),
+                      Text('Sign Out', style: TextStyle(color: theme.colorScheme.error)),
+                    ],
+                  ),
+                ),
+              ],
+              child: Container(
+                margin: const EdgeInsets.only(right: 16),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  Icons.menu_rounded,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentLessons(ThemeData theme) {
+    return Consumer<LessonProvider>(
+      builder: (context, lessonProvider, child) {
+        if (lessonProvider.lessonHistory.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '📚 Recent Lessons',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                color: theme.colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 120,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: lessonProvider.lessonHistory.take(5).length,
+                itemBuilder: (context, index) {
+                  final lesson = lessonProvider.lessonHistory[index];
+                  return Container(
+                    width: 200,
+                    margin: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          theme.colorScheme.primary.withOpacity(0.1),
+                          theme.colorScheme.secondary.withOpacity(0.05),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: theme.colorScheme.primary.withOpacity(0.3),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          lesson.topic,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.primary,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          lesson.avatarName,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withOpacity(0.7),
+                          ),
+                        ),
+                        const Spacer(),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.play_circle_outline,
+                              size: 16,
+                              color: theme.colorScheme.secondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${lesson.flashNotes.length} notes',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.secondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -499,76 +697,160 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildSubmitButton(ThemeData theme) {
-    return AnimatedBuilder(
-      animation: _submitScaleAnimation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _submitScaleAnimation.value,
-          child: Container(
-            width: double.infinity,
-            height: 60,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  theme.colorScheme.primary,
-                  theme.colorScheme.secondary,
-                  theme.colorScheme.tertiary,
-                ],
-              ),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: theme.colorScheme.primary.withOpacity(0.4),
-                  blurRadius: 15,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _submitPrompt,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.transparent,
-                shadowColor: Colors.transparent,
-                shape: RoundedRectangleBorder(
+    return Consumer<LessonProvider>(
+      builder: (context, lessonProvider, child) {
+        return AnimatedBuilder(
+          animation: _submitScaleAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: _submitScaleAnimation.value,
+              child: Container(
+                width: double.infinity,
+                height: 60,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      theme.colorScheme.primary,
+                      theme.colorScheme.secondary,
+                      theme.colorScheme.tertiary,
+                    ],
+                  ),
                   borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: theme.colorScheme.primary.withOpacity(0.4),
+                      blurRadius: 15,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: ElevatedButton(
+                  onPressed: lessonProvider.isGenerating ? null : _submitPrompt,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                  ),
+                  child: lessonProvider.isGenerating
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Text(
+                              'Preparing your lesson...',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          '🎯 Teach Me Now!',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
-              child: _isLoading
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: const AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Text(
-                          'Preparing your lesson...',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Text(
-                      '🎯 Teach Me Now!',
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
   }
+
+  void _showLessonHistory(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Consumer<LessonProvider>(
+        builder: (context, lessonProvider, child) {
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.8,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(25),
+                topRight: Radius.circular(25),
+              ),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.history, color: Colors.blue),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Lesson History',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: lessonProvider.lessonHistory.isEmpty
+                      ? const Center(
+                          child: Text('No lessons yet. Start learning!'),
+                        )
+                      : ListView.builder(
+                          itemCount: lessonProvider.lessonHistory.length,
+                          itemBuilder: (context, index) {
+                            final lesson = lessonProvider.lessonHistory[index];
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                child: Text(
+                                  lesson.topic.substring(0, 1).toUpperCase(),
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              title: Text(lesson.topic),
+                              subtitle: Text('${lesson.flashNotes.length} flash notes • ${lesson.avatarName}'),
+                              trailing: const Icon(Icons.play_arrow),
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.pushNamed(
+                                  context,
+                                  '/video',
+                                  arguments: {'lesson': lesson},
+                                );
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
+```
